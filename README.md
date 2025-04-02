@@ -68,6 +68,7 @@ For development installation:
 ```bash
 git clone https://github.com/shwbaek/pado.git
 cd pado
+pip install -e .
 ```
 
 ---
