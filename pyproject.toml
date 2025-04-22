@@ -7,7 +7,8 @@ name = "pado-optics"
 version = "1.0.1"
 description = "Pytorch Automatic Differentiable Optics"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Seung-Hwan Baek", email = "shwbaek@postech.ac.kr" },
     { name = "Dong-Ha Shin", email = "0218sdh@gmail.com"  },
