@@ -44,7 +44,8 @@ from .material import Material
 class OpticalElement:
     def __init__(self, dim: Tuple[int, int, int, int], pitch: float, wvl: float, 
                  field_change: Optional[torch.Tensor] = None, device: str = 'cpu', 
-                 name: str = "not defined", polar: str = 'non') -> None:
+                 name: str = "not defined", polar: str = 'non',
+                 dtype: torch.dtype = torch.float32) -> None:
         """Base class for optical elements that modify incident light wavefront.
 
         The wavefront modification is stored as amplitude and phase tensors.
@@ -74,6 +75,7 @@ class OpticalElement:
             self.field_change = field_change
         self.wvl = wvl
         self.polar = polar
+        self.dtype = dtype
 
     def forward(self, light: 'Light', interp_mode: str = 'nearest') -> 'Light':
         """Propagate incident light through the optical element.
@@ -443,7 +445,8 @@ class OpticalElement:
 class RefractiveLens(OpticalElement):
     def __init__(self, dim: Tuple[int, int, int, int], pitch: float, focal_length: float, 
                  wvl: Union[float, List[float]], device: str, polar: str = 'non', 
-                 designated_wvl: Optional[float] = None) -> None:
+                 designated_wvl: Optional[float] = None,
+                 dtype: torch.dtype = torch.float32) -> None:
         """Create a thin refractive lens optical element.
 
         Simulates a thin refractive lens that modifies the phase of incident light
@@ -469,7 +472,7 @@ class RefractiveLens(OpticalElement):
             >>> # Create multi-channel lens with different wavelengths
             >>> lens = RefractiveLens((1,3,512,512), 2e-6, 0.1, [633e-9,532e-9,450e-9], 'cuda:0')
         """
-        super().__init__(dim, pitch, wvl, None, device, name="refractive_lens", polar=polar)
+        super().__init__(dim, pitch, wvl, None, device, name="refractive_lens", polar=polar, dtype=dtype)
 
         self.focal_length: Optional[float] = None
 
@@ -481,7 +484,7 @@ class RefractiveLens(OpticalElement):
         if dim[1] == 1:
             phase = self.compute_phase(self.wvl, shift_x=0, shift_y=0)
             # Create unit amplitude field with exact 1.0 amplitude
-            amplitude = torch.ones(phase.shape, dtype=torch.float32, device=self.device)
+            amplitude = torch.ones(phase.shape, dtype=dtype, device=self.device)
             field_change = amplitude * torch.exp(1j * phase)
             self.set_field_change(field_change, c=0)
         else:
@@ -489,14 +492,14 @@ class RefractiveLens(OpticalElement):
                 for i in range(dim[1]):
                     phase = self.compute_phase(designated_wvl, shift_x=0, shift_y=0)
                     # Create unit amplitude field with exact 1.0 amplitude
-                    amplitude = torch.ones(phase.shape, dtype=torch.float32, device=self.device)
+                    amplitude = torch.ones(phase.shape, dtype=dtype, device=self.device)
                     field_change = amplitude * torch.exp(1j * phase)
                     self.set_field_change(field_change, c=i)
             else:
                 for i in range(dim[1]):
                     phase = self.compute_phase(self.wvl[i], shift_x=0, shift_y=0)
                     # Create unit amplitude field with exact 1.0 amplitude
-                    amplitude = torch.ones(phase.shape, dtype=torch.float32, device=self.device)
+                    amplitude = torch.ones(phase.shape, dtype=dtype, device=self.device)
                     field_change = amplitude * torch.exp(1j * phase)
                     self.set_field_change(field_change, c=i)
 
@@ -533,7 +536,7 @@ class RefractiveLens(OpticalElement):
         y = np.arange(-self.dim[2]/2, self.dim[2]/2) * self.pitch
         xx, yy = np.meshgrid(x, y, indexing='xy')
 
-        theta_change = torch.tensor((-2*np.pi / wvl)*((xx-shift_x)**2 + (yy-shift_y)**2), device=self.device) / (2*self.focal_length)
+        theta_change = torch.tensor((-2*np.pi / wvl)*((xx-shift_x)**2 + (yy-shift_y)**2), device=self.device, dtype=self.dtype) / (2*self.focal_length)
         theta_change = (theta_change + np.pi) % (np.pi * 2) - np.pi
         theta_change = torch.unsqueeze(torch.unsqueeze(theta_change, axis=0), axis=0)
         
@@ -578,8 +581,8 @@ class CosineSquaredLens(OpticalElement):
         y = np.arange(-self.dim[2]/2, self.dim[2]/2) * self.pitch
         xx, yy = np.meshgrid(x, y, indexing='xy')
         
-        xx = torch.tensor(xx, device=self.device)
-        yy = torch.tensor(yy, device=self.device)
+        xx = torch.tensor(xx, device=self.device, dtype=self.dtype)
+        yy = torch.tensor(yy, device=self.device, dtype=self.dtype)
         
         r_squared = xx**2 + yy**2  # Radius squared from the center
         
@@ -834,8 +837,8 @@ class DOE(OpticalElement):
         y = y[:self.dim[2]]
         
         xx, yy = np.meshgrid(x, y)
-        xx = torch.tensor(xx, device=self.device)
-        yy = torch.tensor(yy, device=self.device)
+        xx = torch.tensor(xx, device=self.device, dtype=self.dtype)
+        yy = torch.tensor(yy, device=self.device, dtype=self.dtype)
 
         phase_u = (-2 * np.pi / wvl) * (
             torch.sqrt(
@@ -880,7 +883,7 @@ class DOE(OpticalElement):
         # Map phase to 0 or pi based on the sign of the cosine of the original phase
         fresnel_phase = np.pi * (np.cos(original_phase) >= 0).astype(np.float32)
 
-        fresnel_phase = torch.tensor(fresnel_phase, device=self.device)
+        fresnel_phase = torch.tensor(fresnel_phase, device=self.device, dtype=self.dtype)
         fresnel_phase = torch.unsqueeze(torch.unsqueeze(fresnel_phase, axis=0), axis=0)
         
         self.set_phase_change(fresnel_phase, sync_height=True)
@@ -1051,7 +1054,7 @@ class SLM(OpticalElement):
         xx,yy = np.meshgrid(x,y)
 
         phase_u = (2*np.pi / self.wvl)*((xx-shift_x)**2 + (yy-shift_y)**2) / (2*focal_length)
-        phase_u = torch.tensor(phase_u.astype(np.float32), device=self.device).unsqueeze(0).unsqueeze(0)
+        phase_u = torch.tensor(phase_u.astype(np.float32), device=self.device, dtype=self.dtype).unsqueeze(0).unsqueeze(0)
         phase_w = wrap_phase(phase_u, stay_positive=False)
         self.set_phase_change(phase_w)
 
@@ -1437,7 +1440,7 @@ class Aperture(OpticalElement):
         amp = (r <= max_val).astype(np.float32)
         amp_copy = amp.copy()  # Make a copy to avoid modifying the array in-place
         amp_copy[amp_copy == 0] = 1e-20
-        self.set_field_change(torch.tensor(amp_copy, device=self.device))
+        self.set_field_change(torch.tensor(amp_copy, device=self.device, dtype=self.dtype))
 
     def set_circle(self, cx: float = 0, cy: float = 0, dia: float = None) -> None:
         """Set circular aperture amplitude modulation.
@@ -1467,7 +1470,7 @@ class Aperture(OpticalElement):
         amp = (r <= max_val).astype(np.float32)
         amp_copy = amp.copy()  # Make a copy to avoid modifying the array in-place
         amp_copy[amp_copy == 0] = 1e-20
-        self.set_field_change(torch.tensor(amp_copy, device=self.device))
+        self.set_field_change(torch.tensor(amp_copy, device=self.device, dtype=self.dtype))
 
 
 def quantize(x: Union[torch.Tensor, np.ndarray], levels: int, vmin: float = None, vmax: float = None, include_vmax: bool = True) -> Union[torch.Tensor, np.ndarray]:
