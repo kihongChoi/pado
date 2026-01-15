@@ -481,7 +481,7 @@ class RefractiveLens(OpticalElement):
         if dim[1] == 1:
             phase = self.compute_phase(self.wvl, shift_x=0, shift_y=0)
             # Create unit amplitude field with exact 1.0 amplitude
-            amplitude = torch.ones(phase.shape, dtype=torch.float64, device=self.device)
+            amplitude = torch.ones(phase.shape, dtype=torch.float32, device=self.device)
             field_change = amplitude * torch.exp(1j * phase)
             self.set_field_change(field_change, c=0)
         else:
@@ -489,14 +489,14 @@ class RefractiveLens(OpticalElement):
                 for i in range(dim[1]):
                     phase = self.compute_phase(designated_wvl, shift_x=0, shift_y=0)
                     # Create unit amplitude field with exact 1.0 amplitude
-                    amplitude = torch.ones(phase.shape, dtype=torch.float64, device=self.device)
+                    amplitude = torch.ones(phase.shape, dtype=torch.float32, device=self.device)
                     field_change = amplitude * torch.exp(1j * phase)
                     self.set_field_change(field_change, c=i)
             else:
                 for i in range(dim[1]):
                     phase = self.compute_phase(self.wvl[i], shift_x=0, shift_y=0)
                     # Create unit amplitude field with exact 1.0 amplitude
-                    amplitude = torch.ones(phase.shape, dtype=torch.float64, device=self.device)
+                    amplitude = torch.ones(phase.shape, dtype=torch.float32, device=self.device)
                     field_change = amplitude * torch.exp(1j * phase)
                     self.set_field_change(field_change, c=i)
 
