@@ -77,7 +77,7 @@ def unpad(field_padded: torch.Tensor, pad_width: Tuple[int, int, int, int]) -> t
 
 
 class Propagator:
-    def __init__(self, mode: str, polar: str = 'non'):
+    def __init__(self, mode: str, polar: str = 'non', dtype: torch.dtype = torch.float32):
         """Light propagator for simulating wave propagation through free space.
 
         Implement common diffraction methods including Fraunhofer, Fresnel, ASM and RS.
@@ -90,7 +90,7 @@ class Propagator:
                 - "ASM": Angular Spectrum Method
                 - "RS": Rayleigh-Sommerfeld Method
             polar (str): Polarization mode ('non': scalar, 'polar': vector)
-
+            dtype (torch.dtype): Data type for computation
         Examples:
             >>> # Create ASM propagator for scalar field
             >>> prop = Propagator(mode="ASM", polar="non")
@@ -106,7 +106,7 @@ class Propagator:
         """
         self.mode: str = mode
         self.polar: str = polar
-
+        self.dtype = dtype
     def forward(self, light: Light, z: float, offset: Tuple[float, float] = (0, 0), 
                 linear: bool = True, band_limit: bool = True, b: float = 1, 
                 target_plane: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = None, 
@@ -282,7 +282,7 @@ class Propagator:
             wavelengths = [light.wvl] * field_input.shape[1]
 
         # Convert wavelengths to tensor for broadcasting
-        wavelengths = torch.tensor(wavelengths, device=light.device).view(1, -1, 1, 1)
+        wavelengths = torch.tensor(wavelengths, device=light.device, dtype=self.dtype).view(1, -1, 1, 1)
         
         # Calculate pad width for all channels at once
         pad_width = compute_pad_width(field_input, linear)
@@ -291,13 +291,13 @@ class Propagator:
         if linear:
             sx = light.dim[3]
             sy = light.dim[2]
-            x = torch.arange(-sx, sx, 1, device=light.device)
-            y = torch.arange(-sy, sy, 1, device=light.device)
+            x = torch.arange(-sx, sx, 1, device=light.device, dtype=self.dtype)
+            y = torch.arange(-sy, sy, 1, device=light.device, dtype=self.dtype)
         else:
             sx = light.dim[3] / 2
             sy = light.dim[2] / 2
-            x = torch.arange(-sx, sx, 1, device=light.device)
-            y = torch.arange(-sy, sy, 1, device=light.device)
+            x = torch.arange(-sx, sx, 1, device=light.device, dtype=self.dtype)
+            y = torch.arange(-sy, sy, 1, device=light.device, dtype=self.dtype)
 
         xx, yy = torch.meshgrid(x, y, indexing='xy')
         xx = (xx*light.pitch).to(light.device)
@@ -402,7 +402,7 @@ class Propagator:
             wavelengths = [light.wvl] * field_input.shape[1]
 
         # Convert wavelengths to tensor for broadcasting
-        wavelengths = torch.tensor(wavelengths, device=light.device).view(1, -1, 1, 1)
+        wavelengths = torch.tensor(wavelengths, device=light.device, dtype=self.dtype).view(1, -1, 1, 1)
         
         # Calculate pad width for all channels at once
         pad_width = compute_pad_width(field_input, linear)
@@ -457,8 +457,8 @@ class Propagator:
             offset = (0, 0)
 
         # Convert z and offset to tensors
-        z = torch.tensor(z, device=light.device)
-        offset = torch.tensor(offset, device=light.device)
+        z = torch.tensor(z, device=light.device, dtype=self.dtype)
+        offset = torch.tensor(offset, device=light.device, dtype=self.dtype)
 
         # Check if wvl is a list or a single float, and adjust accordingly
         if hasattr(light.wvl, "__iter__") and not isinstance(light.wvl, str):
@@ -467,7 +467,7 @@ class Propagator:
             wavelengths = [light.wvl] * field_input.shape[1]
 
         # Convert wavelengths to tensor for broadcasting
-        wavelengths = torch.tensor(wavelengths, device=light.device).view(1, -1, 1, 1)
+        wavelengths = torch.tensor(wavelengths, device=light.device, dtype=self.dtype).view(1, -1, 1, 1)
         
         # Calculate pad width for all channels at once
         pad_width = compute_pad_width(field_input, linear)
